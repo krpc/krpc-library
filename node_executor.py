@@ -29,19 +29,36 @@ def execute_next_node(vessel, space_center):
     at the top of your script, and then anytime you want to execute a node
     you just have to call (execute_next_node(vessel, space_center) with your
     objects referencing the active vessel and the connection's space_center
-    of course.  
+    of course.
+
+    I'm also demonstrating two different ways to point the vessel with the
+    autopilot.  One relies on the vessel having SAS Node holding capabilty,
+    the other uses the KRPC built-in auto-pilot.   The one built into
+    KRPC can require some tuning depending on your vessel...  but works on
+    any vessel regardless of pilot skill/probe core choice!   
     '''
-# Grab the next node
+# Grab the next node and the autopilot object
     try:
         node = vessel.control.nodes[0]
     except Exception:
         return    #Fail silently but gracefully if there was no node to execute
     
+    
 # Orient vessel to the node
-    vessel.auto_pilot.sas = True
-    time.sleep(.1)
-    vessel.auto_pilot.sas_mode = vessel.auto_pilot.sas_mode.maneuver
-    vessel.auto_pilot.wait()
+    ap=vessel.auto_pilot
+
+################## One Way To Orient Vessel!##############
+    rf= vessel.orbit.body.reference_frame
+    ap.reference_frame=rf
+    ap.engage()
+    ap.target_direction=node.remaining_burn_vector(rf)
+    ap.wait()
+
+##################  Another Way To Orient Vessel!########
+    #ap.sas = True
+    #time.sleep(.1)
+    #ap.sas_mode = vessel.auto_pilot.sas_mode.maneuver
+    #ap.wait()
         
 # Calculate the length and start of burn
     m = vessel.mass
@@ -55,13 +72,17 @@ def execute_next_node(vessel, space_center):
     space_center.warp_to(node.ut - (burn_time / 2.0) - 5.0)
     while node.time_to > (burn_time / 2.0):
         pass
- 
+    ap.wait()
+    
 # Actually Burn
-    vessel.control.throttle = thrust(vessel, node.remaining_delta_v)  
+    vessel.control.throttle = thrust_controller(vessel, node.remaining_delta_v)  
     while node.remaining_delta_v > .1:
-        vessel.control.throttle=thrust(vessel, node.remaining_delta_v)  
+        ap.target_direction=node.remaining_burn_vector(rf)#comment out this line
+        #if using the vessel sas method to orient vessel
+        vessel.control.throttle=thrust_controller(vessel, node.remaining_delta_v)  
 
 # Finish Up
+    ap.disengage()
     vessel.control.throttle = 0.0
     node.remove()
 
@@ -73,7 +94,7 @@ def execute_all_nodes(vessel, space_center):
     while vessel.control.nodes:
         execute_next_node(vessel, space_center)
 
-def thrust(vessel, deltaV):
+def thrust_controller(vessel, deltaV):
     '''
     This function is somewhat arbitrary in it's working - there's not a 'rule'
     that I've found on how to feather out throttle towards the end of a burn
