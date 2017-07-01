@@ -11,15 +11,20 @@ import math
 import time
 
 def main():
+    global conn
     conn = krpc.connect()
     sc = conn.space_center
     v = sc.active_vessel
 
-    execute_next_node(v, sc)
+#Demo of all three major functions in this file - uncomment the one you want!
+    execute_btn(v, sc)   #Creates an on screen button to execute the next node
+  #  execute_next_node(v, sc)  #Executes the next node!
   #  execute_all_nodes(v, sc)       #executes ALL nodes instead of just the next one!
  
 def execute_next_node(vessel, space_center):
     '''
+    This is the actually interesting function in this script!
+
     Executes the Next Maneuver Node for the vessel provided.
     If you just open and run this file, it will execute a node and exit.
     You can also include this file into your own script with the line
@@ -48,10 +53,10 @@ def execute_next_node(vessel, space_center):
     ap=vessel.auto_pilot
 
 ################## One Way To Orient Vessel!##############
-    rf= vessel.orbit.body.reference_frame
+    rf = vessel.orbit.body.reference_frame
     ap.reference_frame=rf
     ap.engage()
-    ap.target_direction=node.remaining_burn_vector(rf)
+    ap.target_direction = node.remaining_burn_vector(rf)
     ap.wait()
 
 ##################  Another Way To Orient Vessel!########
@@ -65,7 +70,7 @@ def execute_next_node(vessel, space_center):
     isp = vessel.specific_impulse
     dv = node.delta_v
     F = vessel.available_thrust
-    G= vessel.orbit.body.surface_gravity
+    G = vessel.orbit.body.surface_gravity
     burn_time = (m - (m / math.exp(dv / (isp * G)))) / (F / (isp * G))
 
 # Warp until burn
@@ -79,7 +84,7 @@ def execute_next_node(vessel, space_center):
     while node.remaining_delta_v > .1:
         ap.target_direction=node.remaining_burn_vector(rf)#comment out this line
         #if using the vessel sas method to orient vessel
-        vessel.control.throttle=thrust_controller(vessel, node.remaining_delta_v)  
+        vessel.control.throttle = thrust_controller(vessel, node.remaining_delta_v)  
 
 # Finish Up
     ap.disengage()
@@ -103,14 +108,35 @@ def thrust_controller(vessel, deltaV):
     throttle to the TWR for this purpose.
     '''
     TWR= vessel.max_thrust/vessel.mass
-    if deltaV<TWR/3:
+    if deltaV < TWR / 3:
         return .05
-    elif deltaV<TWR/2:
+    elif deltaV < TWR / 2:
         return .1
-    elif deltaV<TWR:
+    elif deltaV < TWR:
         return .25
     else:
         return 1.0
+
+def execute_btn(vessel, space_center):
+    '''
+    Demo of how to use the UI Service to turn this node execution function into
+    a handy little utility for doing something useful.  Just puts a button on
+    the screen.  When you click it - it executes the next maneuver node.
+    '''
+    global conn       #pull in the connection object
+    canvas = conn.ui.stock_canvas  # draw on the main screen
+    panel = canvas.add_panel()  #container for our button
+    rect = panel.rect_transform  #rect to define panel
+    rect.size = (100, 30)  #panel size
+    rect.position = (110-(canvas.rect_transform.size[0]/2), 0)  #left middle
+    button = panel.add_button("Execute Node")  #add the button
+    button.rect_transform.position = (0, 20)   #locate the button
+    button_clicked = conn.add_stream(getattr, button, 'clicked')  #watch button
+    while True:   #if button clicked, execute the next node 
+        if button_clicked():
+            execute_next_node(vessel, space_center)
+            button.clicked = False
+
 
 # ----------------------------------------------------------------------------
 # Activate main loop, if we are executing THIS file explicitly.
