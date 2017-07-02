@@ -16,7 +16,7 @@ import math
 # Launch parameters
 # ----------------------------------------------------------------------------
 ORBIT_ALT = 95000
-GRAV_TURN_FINISH = 50000  #meters by which vessel should be at 0 pitch
+GRAV_TURN_FINISH = 60000  #meters by which vessel should be at 0 pitch
 MAX_AUTO_STAGE = 0  # last stage to separate automatically
 MAX_Q = 50000
 DEPLOY_SOLAR = True
@@ -27,7 +27,6 @@ INCLINATION = 0
 # ----------------------------------------------------------------------------
 # Script 
 # ----------------------------------------------------------------------------
-G = 9.82 # standard G
 REFRESH_FREQ = 2    # refresh rate in hz
 TELEM_DELAY = 5     #number of seconds between telemetry updates
 ALL_FUELS = ('LiquidFuel', 'SolidFuel')
@@ -272,6 +271,7 @@ def executeNextNode(vessel, space_center):
     isp = vessel.specific_impulse
     dv = node.delta_v
     F = vessel.available_thrust
+    G = vessel.orbit.body.surface_gravity
     
     burn_time = (m - (m / math.exp(dv / (isp * G)))) / (F / (isp * G)) 
     space_center.warp_to(node.ut - (burn_time / 2.0) - 5.0)
