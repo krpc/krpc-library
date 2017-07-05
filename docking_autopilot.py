@@ -4,7 +4,8 @@ import collections
 import math
 
 speed_limit = 1.0
-v3 = collections.namedtuple('v3', 'right forward up')
+v3 = collections.namedtuple('v3', 'right forward up') 
+
 ####################################################
 ## Main
 ####################################################
@@ -17,23 +18,27 @@ def main():
     ap = v.auto_pilot
     rf = v.orbit.body.reference_frame
     
-    ap.reference_frame = rf  #setup auto_pilot
+    #Setup Auto Pilot
+    ap.reference_frame = rf   
     ap.target_direction = tuple(x * -1 for x in t.direction(rf))
     ap.engage()
 
-    upPID = PID(.75,.25,1)   #create PIDs
+    #create PIDs
+    upPID = PID(.75,.25,1)   
     rightPID = PID(.75,.25,1)
     forwardPID = PID(.75,.2,.5)
 
-    proceed=False  #If we're on course, move forward and dock
+    proceed=False  
+    #'proceed' is a flag that signals that we're lined up and ready to dock.
+    # Otherwise the program will try to line up 10m from the docking port.
  
     #LineUp and then dock
     while True:
         offset = getOffsets(v, t)  #grab data and compute setpoints
         velocity = getVelocities(v, t)
-        if proceedCheck(offset):
+        if proceedCheck(offset):  #Check whether we're lined up and ready to dock
             proceed = True
-        setpoints = getSetpoints(offset, proceed)
+        setpoints = getSetpoints(offset, proceed)  
         
         upPID.setpoint(setpoints.up)  #set PID setpoints
         rightPID.setpoint(setpoints.right)
@@ -53,7 +58,7 @@ def getOffsets(v, t):
 
 def getVelocities(v, t):
     '''
-    returns the relative velocities right, forward, up)
+    returns the relative velocities (right, forward, up)
     '''
     return v3._make(v.velocity(t.reference_frame))
 
