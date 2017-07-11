@@ -1,0 +1,320 @@
+#:kivy 1.0
+#
+# kpconsole.kv: Layout of the console for ksp-pynet.
+#
+
+<MenuButtonTemplate@Button>:
+    size: (160, 50)
+    text_size: self.size
+    halign: "center"
+    valign: "middle"
+    size_hint: (None, None)
+
+<DefaultLabel@Label>:
+    size: (300, 30)
+    text_size: self.size
+    halign: "right"
+    valign: "middle"
+    size_hint: (None, None)
+    font_name: 'DejaVuSans'
+
+<DefaultTextInput@TextInput>:
+    size: (200, 30)
+    multiline: False
+    size_hint: (None, None)
+
+<DefaultFloatInput@FloatInput>:
+    size: (200, 30)
+    multiline: False
+    size_hint: (None, None)
+
+#
+# MenuActive: Displayed when the application is connected to KSP via KRPC.
+#
+<MenuActive>:
+    ScrollView:
+        GridLayout:
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: 10
+
+            MenuButtonTemplate:
+                text: 'Diagnostics'
+                on_press: app.screen.current = 'diags'
+
+            MenuButtonTemplate:
+                text: 'Flight Planner'
+                on_press: app.screen.current = 'flight_plan'
+
+            MenuButtonTemplate:
+                text: 'Browser'
+                on_press: app.screen.current = 'browser'
+                
+            MenuButtonTemplate:
+                text: 'Viewer'
+                on_press:
+                    app.screen.current = 'viewer'
+                    app.console.display.viewer.register(app, True)
+
+            MenuButtonTemplate:
+                text: 'Maneuver'
+                on_press: app.screen.current = 'maneuver'
+
+#
+# Menu: Displayed when the application is not connected to KSP.
+#
+<Menu>:
+    connection: connection
+    dynamic: dynamic
+    alerts: alerts
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+        spacing: 20
+
+        MenuButtonTemplate:
+            id: connection
+            text: 'Connection'
+            background_color_normal: ''
+            background_color: (1,0.8,0.5,1)
+            on_press: app.screen.current = "connection"
+
+        BoxLayout:
+            orientation: 'vertical'
+            id: dynamic
+            size_hint_y: 7
+
+        ScrollView:
+            padding: 20
+            size_hint_y: 2
+            width: 200
+            size_hint_x: None
+            Label:
+                id: alerts
+                markup: True
+                font_name: 'RobotoMono-Regular'
+                color: (1,1,0,0.2)
+                size_hint_y: None
+                text_size: self.width, None
+                height: self.texture_size[1]
+                text: "Welcome to KSP Pynet"
+
+#
+# Display*: Frame templates for displaying.
+#
+# DisplayDiagnostics: Frame for displaying diagnostics.
+#
+<DisplayDiagnostics>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 50
+        spacing: 20
+
+        ScrollView:
+            id: scrlv
+            size_hint_y: 7
+            TextInput:
+                id: diag_text
+                font_name: 'RobotoMono-Regular'
+                size_hint_y: None
+                text_size: self.width, None
+                height: max(self.height, scrlv.height)
+                text: "Diagnostics to appear here.."
+
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: 1
+ 
+            MenuButtonTemplate:
+                text: 'Test 1'
+                on_press: app.pynet_request(None, "test")
+
+            MenuButtonTemplate:
+                text: 'Test 2'
+                on_press: app.pynet_request(None, "test 2")
+
+#
+# DisplayFlightPlan: Frame for displaying/setting flight plan parameters
+#
+<DisplayFlightPlan>: 
+    GridLayout:
+        cols: 2
+        spacing: 10
+
+        DefaultLabel:
+            text: "Launch Parameters:"
+        DefaultLabel:
+
+        DefaultLabel:
+            id: heading
+            text: "Heading"
+            state: "90"
+        DefaultFloatInput:
+            text: heading.state
+        DefaultLabel:
+            id: target_altitude
+            text: "Target Launch Altitude"
+            state: "95000"
+        DefaultFloatInput:
+            text: target_altitude.state
+
+        DefaultLabel:
+            text: "Orbtial Parameters:"
+        DefaultLabel:
+
+        DefaultLabel:
+            id: apoapsis
+            text: "Apoapsis"
+            state: "100000"
+        DefaultFloatInput:
+            text: apoapsis.state
+        DefaultLabel:
+            id: periapsis
+            text: "Periapsis"
+            state: "100000"
+        DefaultFloatInput:
+            text: periapsis.state
+
+        DefaultLabel:
+        DefaultLabel:
+        DefaultLabel:
+        MenuButtonTemplate:
+            halign: "center"
+            text: "Go"
+            on_press: root.go(app)
+
+#
+# DisplayConnection: Frame for displaying/setting connection details.
+#
+<DisplayConnection>: 
+    connected: connected
+    connected_state: connected_state
+    GridLayout:
+        cols: 2
+        spacing: 10
+        DefaultLabel:
+            id: ip
+            text: "IP address"
+            state: "127.0.0.1"
+        DefaultTextInput:
+            text: ip.state
+        DefaultLabel:
+            id: port
+            text: "Port"
+            state: "50000"
+        DefaultTextInput:
+            text: port.state
+        DefaultLabel:
+            id: connected_state
+            state: str(False)
+            text: ""
+        MenuButtonTemplate:
+            id: connected
+            text: "Connect"
+            background_color: (0.5,1,0.5,0.8)
+            on_press: root.go(app)
+
+#
+# DisplayConnection: Frame for displaying/setting maneuvers.
+# Note that most of the dynamic elements of this can be found in the .py.
+#
+<DisplayManeuver>:
+    GridLayout:
+        cols: 3
+        spacing: 10
+
+#
+# Viewer: Frame for the planet viewer.
+#
+<Viewer>:
+    body_name: "Kerbin"
+    Widget:
+        Label:
+            size: root.size
+            halign: "right"
+            valign: "top"
+            font_size: '30sp'
+            text: root.body_name
+
+#
+# Display: Frame to contain all display frames 
+#
+<Display>:
+    sm: sm
+    viewer: viewer
+    dconn: dconn
+    RelativeLayout:
+        ScreenManager:
+            id: sm
+
+            Screen:
+                name: "disconnected"
+
+            Screen:
+                name: "connection"
+                BoxLayout:
+                    orientation: 'vertical'
+                    DefaultLabel:
+                        text: "KRPC Connection Parameters:"
+                    DisplayConnection:
+                        id: dconn
+                        cols: 2
+
+            Screen:
+                name: "flight_plan"
+                BoxLayout:
+                    orientation: 'vertical'
+
+                    DisplayFlightPlan:
+                        cols: 2
+
+            Screen:
+                name: "diags"
+                DisplayDiagnostics:
+
+            Screen: 
+                name: "viewer"
+                canvas:
+                    Color:
+                        rgba: (0.1, 0.1, 0.2, 1)
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+                Viewer:
+                    id: viewer
+
+            Screen:
+                name: "maneuver"
+                DisplayManeuver:
+                    cols: 3
+
+            Screen: 
+                name: "browser"
+
+# 
+# Console: The parent widget for everything containing the display and a menu.
+#
+<Console>:
+    display: display
+    menu: menu
+
+    BoxLayout:
+        canvas.before:
+            Color:
+                rgba: (0.2, 0.2, 0.2, 1)
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        orientation: 'horizontal'
+        padding: 20
+        spacing: 20
+
+        Menu:
+            id: menu
+            width: 180
+            size_hint_x: None
+
+        Display:
+            id: display
