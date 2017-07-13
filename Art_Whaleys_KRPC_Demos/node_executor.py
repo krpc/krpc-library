@@ -1,9 +1,18 @@
-####################################################################
-##                    Node Executor Script
-##
-##  Contains functions to execute one, or all maneuver nodes created
-##                        for a given vessel.
-####################################################################
+######################################################################
+### Node Execution Library and Example
+######################################################################
+###   Like all of the scripts in my folder here, this file contains
+###   functions you might want to include into your own scripts for  
+###   actual use and a demo in the 'main' function that you can just 
+###   run to see how it works.
+###
+###  This file shows how to execute maneuver nodes.    The docstring
+###  for the execute_next_node function explains how to make this work!
+###  And you can see an example of doing so in the launch script.
+######################################################################
+
+
+
 
 
 import krpc
@@ -11,17 +20,13 @@ import math
 import time
 
 def main():
-    global conn
     conn = krpc.connect()
-    sc = conn.space_center
-    v = sc.active_vessel
-
 #Demo of all three major functions in this file - uncomment the one you want!
-    execute_btn(v, sc)   #Creates an on screen button to execute the next node
-  #  execute_next_node(v, sc)  #Executes the next node!
-  #  execute_all_nodes(v, sc)       #executes ALL nodes instead of just the next one!
+    execute_btn(conn)   #Creates an on screen button to execute the next node
+  #  execute_next_node(conn)  #Executes the next node!
+  #  execute_all_nodes(conn)       #executes ALL nodes instead of just the next one!
  
-def execute_next_node(vessel, space_center):
+def execute_next_node(conn):
     '''
     This is the actually interesting function in this script!
 
@@ -29,12 +34,11 @@ def execute_next_node(vessel, space_center):
     If you just open and run this file, it will execute a node and exit.
     You can also include this file into your own script with the line
 
-    import node_executor
+    from node_executor import execute_next_node
 
     at the top of your script, and then anytime you want to execute a node
-    you just have to call (execute_next_node(vessel, space_center) with your
-    objects referencing the active vessel and the connection's space_center
-    of course.
+    you just have to call (execute_next_node(conn) passing it the active 
+    KRPC connection as a parameter.
 
     I'm also demonstrating two different ways to point the vessel with the
     autopilot.  One relies on the vessel having SAS Node holding capabilty,
@@ -42,7 +46,11 @@ def execute_next_node(vessel, space_center):
     KRPC can require some tuning depending on your vessel...  but works on
     any vessel regardless of pilot skill/probe core choice!   
     '''
-# Grab the next node and the autopilot object
+    space_center = conn.space_center
+    vessel = space_center.active_vessel
+    ap=vessel.auto_pilot
+
+# Grab the next node if it exists
     try:
         node = vessel.control.nodes[0]
     except Exception:
@@ -50,8 +58,6 @@ def execute_next_node(vessel, space_center):
     
     
 # Orient vessel to the node
-    ap=vessel.auto_pilot
-
 ################## One Way To Orient Vessel!##############
     rf = vessel.orbit.body.reference_frame
     ap.reference_frame=rf
@@ -70,7 +76,7 @@ def execute_next_node(vessel, space_center):
     isp = vessel.specific_impulse
     dv = node.delta_v
     F = vessel.available_thrust
-    G = vessel.orbit.body.surface_gravity
+    G = 9.81
     burn_time = (m - (m / math.exp(dv / (isp * G)))) / (F / (isp * G))
 
 # Warp until burn
@@ -91,13 +97,16 @@ def execute_next_node(vessel, space_center):
     vessel.control.throttle = 0.0
     node.remove()
 
-def execute_all_nodes(vessel, space_center):
+def execute_all_nodes(conn):
+
     '''
     as the name implies - this function executes ALL maneuver nodes currently
     planned for the vessel in series.
     '''
+    space_center = conn.space_center
+    vessel = space_center.active_vessel
     while vessel.control.nodes:
-        execute_next_node(vessel, space_center)
+        execute_next_node(conn)
 
 def thrust_controller(vessel, deltaV):
     '''
@@ -117,13 +126,14 @@ def thrust_controller(vessel, deltaV):
     else:
         return 1.0
 
-def execute_btn(vessel, space_center):
+def execute_btn(conn):
     '''
     Demo of how to use the UI Service to turn this node execution function into
     a handy little utility for doing something useful.  Just puts a button on
     the screen.  When you click it - it executes the next maneuver node.
     '''
-    global conn       #pull in the connection object
+    space_center = conn.space_center
+    vessel = space_center.active_vessel
     canvas = conn.ui.stock_canvas  # draw on the main screen
     panel = canvas.add_panel()  #container for our button
     rect = panel.rect_transform  #rect to define panel
@@ -134,10 +144,9 @@ def execute_btn(vessel, space_center):
     button_clicked = conn.add_stream(getattr, button, 'clicked')  #watch button
     while True:   #if button clicked, execute the next node 
         if button_clicked():
-            execute_next_node(vessel, space_center)
+            execute_next_node(conn)
             button.clicked = False
-
-
+ 
 # ----------------------------------------------------------------------------
 # Activate main loop, if we are executing THIS file explicitly.
 # ----------------------------------------------------------------------------                          

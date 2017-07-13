@@ -1,8 +1,22 @@
-#####################################################################
-##                      Basic PID Example
-##
-##   Does nothing but maintain a vertical velocity of 5 m/s
-#####################################################################
+##############################################################################
+### PID Controller Library and Example
+##############################################################################
+###   Like all of the scripts in my folder here, this file contains
+###   functions you might want to include into your own scripts for  
+###   actual use and a demo in the 'main' function that you can just 
+###   run to see how it works.
+###
+###   This file includes a simple and generic PID controller that we use in
+###   many of the other examples when we want to smoothly control one value
+###   based on our measurement of another.  The PID class docstring explains
+###   the basics of using it in your project.   The demo code below that 
+###   shows how to use the PID controller to hold a vertical velocity with
+###   variation of engine thrust.
+##############################################################################
+
+
+
+
 import time
 import krpc
 
@@ -30,7 +44,7 @@ class PID(object):
     controller should respond to.
     output_data = your_pid.update(input_data)
 
-    '''   
+    '''  
     
     def __init__(self, P=1.0, I=0.1, D=0.01):   
         self.Kp = P    #P controls reaction to the instantaneous error
@@ -58,7 +72,6 @@ class PID(object):
 
         self.LastMeasure = measure  # store data for next update
         self.lastTime = now
-        #print ('{}   {}   {}'.format(self.P, self.I, self.D))
 
         return (self.Kp * self.P) + (self.Ki * self.I) - (self.Kd * self.D)
 
@@ -74,15 +87,16 @@ class PID(object):
         self.SetPoint = value
         self.I = 0.0
 
-####################################################
+##############################################################################
 ## Demo Code Below This Line!
-####################################################
+##############################################################################
         
 Target_Velocity = 5   # The value we're trying to limit ourselves to
 
-####################################################
-## Main
-####################################################
+##############################################################################
+## Main  -- only run when we execute this file directly.
+##          ignored when we import the PID into other files!
+##############################################################################
 def main():
     #Setup KRPC
     conn = krpc.connect()

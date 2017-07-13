@@ -4,29 +4,20 @@
 ### Kerbart and I are working on a more versatile and pythonic
 ### launch script that uses the same logic as this one, but I 
 ### thought that it was still worth posting this simpler version
-### for perusal (or use!)   Set the parameters at the top of the file
-### to define the orbit and ascent parameters.
+### for perusal (or use!)   
 ######################################################################
 
 import krpc
 import time
 import math
 
+from pid import PID
+from node_executor import execute_next_node
+
 # ----------------------------------------------------------------------------
 # Launch parameters
 # ----------------------------------------------------------------------------
-ORBIT_ALT = 95000
-GRAV_TURN_FINISH = 60000  #meters by which vessel should be at 0 pitch
-MAX_AUTO_STAGE = 0  # last stage to separate automatically
-MAX_Q = 50000
-DEPLOY_SOLAR = True
-FORCE_ROLL = True
-ROLL = 90
-INCLINATION = 0
 
-# ----------------------------------------------------------------------------
-# Script 
-# ----------------------------------------------------------------------------
 REFRESH_FREQ = 2    # refresh rate in hz
 TELEM_DELAY = 5     #number of seconds between telemetry updates
 ALL_FUELS = ('LiquidFuel', 'SolidFuel')
@@ -48,53 +39,7 @@ class Telemetry(object):
         self.q = flight.dynamic_pressure
         self.g = flight.g_force
 
-class PID(object):
-    '''
-    Generic PID Controller! 
-
-    '''   
-    
-    def __init__(self, P=1.0, I=0.1, D=0.01):   
-        self.Kp = P    #P controls reaction to the instantaneous error
-        self.Ki = I    #I controls reaction to the history of error
-        self.Kd = D    #D prevents overshoot by considering rate of change
-        self.P = 0.0
-        self.I = 0.0
-        self.D = 0.0
-        self.SetPoint = 0.0  #Target value for controller
-        self.ClampI = 1.0  #clamps i_term to prevent 'windup.'
-        self.LastTime = time.time()
-        self.LastMeasure = 0.0
-                
-    def update(self,measure):
-        now = time.time()
-        change_in_time = now - self.LastTime
-        if not change_in_time:
-            change_in_time = 1.0   #avoid potential divide by zero if PID just created.
-       
-        error = self.SetPoint - measure
-        self.P = error
-        self.I += error
-        self.I = self.clamp_i(self.I)   # clamp to prevent windup lag
-        self.D = (measure - self.LastMeasure) / (change_in_time)
-
-        self.LastMeasure = measure  # store data for next update
-        self.lastTime = now
-
-        return (self.Kp * self.P) + (self.Ki * self.I) - (self.Kd * self.D)
-
-    def clamp_i(self, i):   
-        if i > self.ClampI:
-            return self.ClampI
-        elif i < -self.ClampI:
-            return -self.ClampI
-        else:
-            return i
-        
-    def setpoint(self, value):
-        self.SetPoint = value
-        self.I = 0.0
-
+ 
 
 # ----------------------------------------------------------------------------
 # Main loop
@@ -106,9 +51,13 @@ def main():
     import it into another file - thus you can choose to call ascent() later 
     to go to space, or just use the other functions in this file.
     '''
-    ascent()
+    conn = krpc.connect(name='Launch')
+   # ascent(conn)
+    ascent(conn,ORBIT_ALT=105000)
     
-def ascent():
+def ascent(conn, ORBIT_ALT = 95000, GRAV_TURN_FINISH = 60000, MAX_AUTO_STATE = 0,
+           MAX_Q = 20000, DEPLOY_SOLAR = True, FORCE_ROLL = True, ROLL = 90, 
+           INCLINATION = 0):
     '''
     Ascent Autopilot function.  Goes to space, or dies trying.
     '''
@@ -130,9 +79,9 @@ def ascent():
     v.control.throttle=1.0
     
     #Gravity Turn Loop
-    while apoapsis_way_low(v):
+    while apoapsis_way_low(v, ORBIT_ALT):
         gravturn(v, telem)
-        autostage(v)
+        autostage(v , MAX_AUTO_STAGE)
         limitq(v, telem, thrust_controller)
         telemetry(v, telem)
         time.sleep(1.0 / REFRESH_FREQ)        
@@ -149,7 +98,7 @@ def ascent():
     # Coast Phase
     sc.physics_warp_factor = MAX_PHYSICS_WARP
     while still_in_atmosphere(v, telem):   
-        if apoapsis_little_low(v):
+        if apoapsis_little_low(v , ORBIT_ALT):
             sc.physics_warp_factor = 0
             boostAPA(v, telem)
             sc.physics_warp_factor = MAX_PHYSICS_WARP
@@ -160,7 +109,7 @@ def ascent():
     sc.physics_warp_factor = 0
     planCirc(v, sc.ut)
     telemetry(v, telem)
-    executeNextNode(v, sc)
+    execute_next_node(conn)
 
     # Finish Up
     if DEPLOY_SOLAR: v.control.solar_panels=True 
@@ -171,11 +120,11 @@ def ascent():
 # staging logic
 # ----------------------------------------------------------------------------        
 
-def autostage(vessel):
+def autostage(vessel, MAX_AUTO_STAGE):
     '''
     activate next stage when there is no fuel left in the current stage
     '''
-    if out_of_stages(vessel):   
+    if out_of_stages(vessel, MAX_AUTO_STAGE):   
         return
     res = get_resources(vessel)
     interstage = True   # flag to check if this is a fuel-less stage
@@ -248,51 +197,7 @@ def limitq(vessel, flight, controller):
     '''
     vessel.control.throttle= controller.update(flight.dynamic_pressure)
  
-# ----------------------------------------------------------------------------
-# Execute Next Maneuver Node   
-# ----------------------------------------------------------------------------   
-def executeNextNode(vessel, space_center):
-    '''
-    Executes Next Maneuver Node for vessel.  General purpose but NOT entirely 
-    self contained because it makes calls to telemetry!
-    If you're stealing this function, delete those or implement 
-    telemetry(vessel, flight).
-    '''
-    node=vessel.control.nodes[0]
-    flight=vessel.flight(vessel.orbit.body.reference_frame)
-    
-    #orient to node
-    vessel.auto_pilot.sas_mode = vessel.auto_pilot.sas_mode.maneuver
-    vessel.auto_pilot.wait()
-    telemetry(vessel, flight) 
-     
-    # Warp until burn
-    m = vessel.mass
-    isp = vessel.specific_impulse
-    dv = node.delta_v
-    F = vessel.available_thrust
-    G = vessel.orbit.body.surface_gravity
-    
-    burn_time = (m - (m / math.exp(dv / (isp * G)))) / (F / (isp * G)) 
-    space_center.warp_to(node.ut - (burn_time / 2.0) - 5.0)
-    while node.time_to > (burn_time / 2.0):
-        telemetry(vessel, flight) 
-
-    # burn
-    vessel.control.throttle = 1.0
-    while node.remaining_delta_v > .1:
-        autostage(vessel)
-        telemetry(vessel, flight) 
-        if node.remaining_delta_v < 10:     
-            # Chop throttle to 5% for last 10m/s to minimize overshoot
-            vessel.control.throttle = .05
-        else:                               
-            # Otherwise full power burn
-            vessel.control.throttle = 1.0   
-            
-    vessel.control.throttle=0.0
-    node.remove()
-
+ 
 # ----------------------------------------------------------------------------
 # post telemetry
 # ----------------------------------------------------------------------------             
@@ -344,19 +249,19 @@ def display_telemetry(t):
 def still_in_atmosphere(vessel, flight):
     return flight.mean_altitude<vessel.orbit.body.atmosphere_depth
 
-def apoapsis_way_low(vessel):
+def apoapsis_way_low(vessel, ORBIT_ALT):
     '''
     True if Apoapsis is less than 95% of target apoapsis
     '''
     return vessel.orbit.apoapsis_altitude<(ORBIT_ALT*.95)
 
-def apoapsis_little_low(vessel):
+def apoapsis_little_low(vessel, ORBIT_ALT):
     '''
     True if Apoapsis is less than target apoapsis at all
     '''
     return vessel.orbit.apoapsis_altitude<ORBIT_ALT
 
-def out_of_stages(vessel):
+def out_of_stages(vessel, MAX_AUTO_STAGE):
     '''
     True if no more stages left to activate
     '''
