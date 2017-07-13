@@ -27,7 +27,6 @@
     <Compile Include="docking_autopilot.py" />
     <Compile Include="node_executor.py" />
     <Compile Include="pid.py" />
-    <Compile Include="rendezvous.py" />
     <Compile Include="rover.py" />
     <Compile Include="Simple_Launch_Script.py" />
   </ItemGroup>
