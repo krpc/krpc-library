@@ -3,6 +3,8 @@ import krpc
 import collections
 import math
 
+from pid import PID
+
 speed_limit = 1.0
 v3 = collections.namedtuple('v3', 'right forward up') 
 
@@ -10,8 +12,12 @@ v3 = collections.namedtuple('v3', 'right forward up')
 ## Main
 ####################################################
 def main():
-    #Setup KRPC
     conn = krpc.connect()
+    dock(conn)
+
+def dock(conn):
+
+    #Setup KRPC
     sc = conn.space_center
     v = sc.active_vessel
     t = sc.target_docking_port
@@ -50,6 +56,9 @@ def main():
      
         time.sleep(.1)
              
+###############################
+##  Helper Functions
+###############################
 def getOffsets(v, t):
     '''
     returns the distance (right, forward, up) between docking ports.
@@ -85,53 +94,6 @@ def proceedCheck(offset):
             offset.right < .1 and
             math.fabs(10 - offset.forward)<.1)
              
-
-class PID(object):
-    '''
-    Generic PID Controller Class
-    You shouldn't have to modify anything in it!
-    '''   
-    
-    def __init__(self, P=1.0, I=0.1, D=0.01):   
-        self.Kp = P    #P controls reaction to the instantaneous error
-        self.Ki = I    #I controls reaction to the history of error
-        self.Kd = D    #D prevents overshoot by considering rate of change
-        self.P = 0.0
-        self.I = 0.0
-        self.D = 0.0
-        self.SetPoint = 0.0  #Target value for controller
-        self.ClampI = 1.0  #clamps i_term to prevent 'windup.'
-        self.LastTime = time.time()
-        self.LastMeasure = 0.0
-                
-    def update(self,measure):
-        now = time.time()
-        change_in_time = now - self.LastTime
-        if not change_in_time:
-            change_in_time = 1.0   #avoid potential divide by zero if PID just created.
-       
-        error = self.SetPoint - measure
-        self.P = error
-        self.I += error
-        self.I = self.clamp_i(self.I)   # clamp to prevent windup lag
-        self.D = (measure - self.LastMeasure) / (change_in_time)
-
-        self.LastMeasure = measure  # store data for next update
-        self.lastTime = now
-
-        return (self.Kp * self.P) + (self.Ki * self.I) - (self.Kd * self.D)
-
-    def clamp_i(self, i):   
-        if i > self.ClampI:
-            return self.ClampI
-        elif i < -self.ClampI:
-            return -self.ClampI
-        else:
-            return i
-        
-    def setpoint(self, value):
-        self.SetPoint = value
-        self.I = 0.0
 
  
 ##This calls the main function which is at the top of the file for readability's sake!
