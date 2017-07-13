@@ -1,9 +1,18 @@
-####################################################################
-##                    Node Executor Script
-##
-##  Contains functions to execute one, or all maneuver nodes created
-##                        for a given vessel.
-####################################################################
+######################################################################
+### Node Execution Library and Example
+######################################################################
+###   Like all of the scripts in my folder here, this file contains
+###   functions you might want to include into your own scripts for  
+###   actual use and a demo in the 'main' function that you can just 
+###   run to see how it works.
+###
+###  This file shows how to execute maneuver nodes.    The docstring
+###  for the execute_next_node function explains how to make this work!
+###  And you can see an example of doing so in the launch script.
+######################################################################
+
+
+
 
 
 import krpc

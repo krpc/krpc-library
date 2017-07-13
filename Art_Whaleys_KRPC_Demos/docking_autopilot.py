@@ -1,3 +1,20 @@
+######################################################################
+### Docking Autopilot Library and Example
+######################################################################
+###   Like all of the scripts in my folder here, this file contains
+###   functions you might want to include into your own scripts for  
+###   actual use and a demo in the 'main' function that you can just 
+###   run to see how it works.
+###
+###  This file demonstrates an automatic docking.  It assumes that
+###  your vessel is already on the correct side of the vessel to dock
+###  to.   In the near future I'll work on code to allow it to clear
+###  the target vessel safely and put itself on the correct side, but
+###  for now it's a great and fairly simple example of using some
+###  basic PID methods to control vessels with precision.
+######################################################################
+
+
 import time
 import krpc
 import collections
@@ -5,17 +22,22 @@ import math
 
 from pid import PID
 
-speed_limit = 1.0
+
 v3 = collections.namedtuple('v3', 'right forward up') 
 
-####################################################
-## Main
-####################################################
+##############################################################################
+## Main  - only run when this file is explicitly executed
+##############################################################################
 def main():
     conn = krpc.connect()
     dock(conn)
 
-def dock(conn):
+##############################################################################
+## dock  - The actually interesting function in this file.   
+## works by lining vessel up parallel, with 10m of separation between
+## docking ports.  When this is confirmed, it moves forward slowly to dock.
+##############################################################################
+def dock(conn, speed_limit = 1.0):
 
     #Setup KRPC
     sc = conn.space_center
@@ -38,13 +60,14 @@ def dock(conn):
     #'proceed' is a flag that signals that we're lined up and ready to dock.
     # Otherwise the program will try to line up 10m from the docking port.
  
-    #LineUp and then dock
+    #LineUp and then dock  - in the same loop with 'proceed' controlling whether
+    #we're headed for the 10m safe point, or headed forward to dock.
     while True:
         offset = getOffsets(v, t)  #grab data and compute setpoints
         velocity = getVelocities(v, t)
         if proceedCheck(offset):  #Check whether we're lined up and ready to dock
             proceed = True
-        setpoints = getSetpoints(offset, proceed)  
+        setpoints = getSetpoints(offset, proceed, speed_limit)  
         
         upPID.setpoint(setpoints.up)  #set PID setpoints
         rightPID.setpoint(setpoints.right)
@@ -56,9 +79,9 @@ def dock(conn):
      
         time.sleep(.1)
              
-###############################
+##############################################################################
 ##  Helper Functions
-###############################
+##############################################################################
 def getOffsets(v, t):
     '''
     returns the distance (right, forward, up) between docking ports.
@@ -71,7 +94,7 @@ def getVelocities(v, t):
     '''
     return v3._make(v.velocity(t.reference_frame))
 
-def getSetpoints(offset, proceed):
+def getSetpoints(offset, proceed, speed_limit):
     '''
     returns the computed set points -
     set points are actually just the offset distances clamped to the

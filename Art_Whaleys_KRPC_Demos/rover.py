@@ -45,7 +45,7 @@ def main():
 ##############################################################################
 ##  And here's the function that's actually interesting! 
 ##############################################################################
-def rover_go(conn, waypoint, speed = 15.0, savetime = 300 ):
+def rover_go(conn, waypoint, speed = 10.0, savetime = 300 ):
     '''
     Function to drive a rover to the specified waypoint.  Must be called with
     an active KRPC connection and a valid waypoint.   Attempts to bring rover
