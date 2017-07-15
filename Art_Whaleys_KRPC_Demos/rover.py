@@ -147,7 +147,7 @@ def recharge(conn):
     telem=vessel.flight(vessel.orbit.body.reference_frame)
     Max_EC = vessel.resources.max('ElectricCharge')
     EC = vessel.resources.amount('ElectricCharge')
-    if EC / Max_EC < .05:   #less than 5% charge
+    if EC / Max_EC < .05:   #less than 5% charge - Stop the rover
         vessel.control.wheel_throttle = 0
         vessel.control.brakes = True
         while telem.speed > 0.01:
@@ -156,10 +156,9 @@ def recharge(conn):
         while EC / Max_EC < .85:   #less than 85% charge
             Max_EC = vessel.resources.max('ElectricCharge')
             EC = vessel.resources.amount('ElectricCharge')
-        vessel.control.solar_panels = False
+        vessel.control.solar_panels = False  ##pack up and get moving again
         vessel.control.brakes = False
-         
-
+        
 
 ##############################################################################
 ##  Navigation Math Functions
