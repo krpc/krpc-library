@@ -15,7 +15,7 @@ from pid import PID
 from node_executor import execute_next_node
 
 # ----------------------------------------------------------------------------
-# Launch parameters
+# Script parameters
 # ----------------------------------------------------------------------------
 
 REFRESH_FREQ = 2    # refresh rate in hz
@@ -24,6 +24,29 @@ ALL_FUELS = ('LiquidFuel', 'SolidFuel')
 MAX_PHYSICS_WARP = 3 # valid values are 0 (none) through 3 (4x)
 next_telem_time=time.time()
 
+class MissionParameters(object):
+    '''
+    All mission parameters are stored in a single object to easily
+    pass around
+    '''
+    def __init__(self,
+                 max_auto_stage = 0,
+                 orbit_alt = 100000,
+                 grav_turn_finish = 55000,
+                 inclination = 0,
+                 force_roll = True,
+                 roll = 90,
+                 deploy_solar = True,
+                 max_q = 20000):
+        self.max_auto_stage = max_auto_stage
+        self.orbit_alt = orbit_alt
+        self.grav_turn_finish = grav_turn_finish
+        self.inclination = inclination
+        self.force_roll = force_roll 
+        self.roll = roll
+        self.deploy_solar = deploy_solar
+        self.max_q = max_q
+       
 class Telemetry(object):
     def __init__(self, vessel, flight):
         self.apoapsis = vessel.orbit.apoapsis_altitude
@@ -48,42 +71,42 @@ class Telemetry(object):
 def main():
     '''
     main function is run when you just execute this file, but NOT when you 
-    import it into another file - thus you can choose to call ascent() later 
+    import it into another file - thus you can choose to call ascent later 
     to go to space, or just use the other functions in this file.
     '''
+
+    ##  Setup KRPC and create a launch_params object with the default settings
     conn = krpc.connect(name='Launch')
-   # ascent(conn)
-    ascent(conn,ORBIT_ALT=105000)
+    launch_params = MissionParameters() 
+    ascent(conn,launch_params)
     
-def ascent(conn, ORBIT_ALT = 95000, GRAV_TURN_FINISH = 60000, MAX_AUTO_STATE = 0,
-           MAX_Q = 20000, DEPLOY_SOLAR = True, FORCE_ROLL = True, ROLL = 90, 
-           INCLINATION = 0):
+def ascent(conn, launch_params):
     '''
     Ascent Autopilot function.  Goes to space, or dies trying.
     '''
-    #Setup KRPC
+    #Setup KRPC and PIDs
     conn = krpc.connect(name='Launch')
     sc = conn.space_center
     v = sc.active_vessel
     telem=v.flight(v.orbit.body.reference_frame)
     thrust_controller = PID(P=.001, I=0.0001, D=0.01)
-    thrust_controller.ClampI = MAX_Q
-    thrust_controller.setpoint(MAX_Q) 
+    thrust_controller.ClampI = launch_params.max_q
+    thrust_controller.setpoint(launch_params.max_q) 
     
 
     #Prepare for Launch
     v.auto_pilot.engage()
-    v.auto_pilot.target_heading=inc_to_heading(INCLINATION)
-    if FORCE_ROLL: 
-        v.auto_pilot.target_roll=ROLL
+    v.auto_pilot.target_heading=inc_to_heading(launch_params.inclination)
+    if launch_params.force_roll: 
+        v.auto_pilot.target_roll=launch_params.roll
     v.control.throttle=1.0
     
     #Gravity Turn Loop
-    while apoapsis_way_low(v, ORBIT_ALT):
-        gravturn(v, telem)
-        autostage(v , MAX_AUTO_STAGE)
-        limitq(v, telem, thrust_controller)
-        telemetry(v, telem)
+    while apoapsis_way_low(v, launch_params.orbit_alt):
+        gravturn(conn, launch_params)
+        autostage(v , launch_params.max_auto_stage)
+        limitq(conn, thrust_controller)
+        telemetry(conn)
         time.sleep(1.0 / REFRESH_FREQ)        
     v.control.throttle = 0.0
     
@@ -93,27 +116,27 @@ def ascent(conn, ORBIT_ALT = 95000, GRAV_TURN_FINISH = 60000, MAX_AUTO_STATE = 0
     time.sleep(.1)
     v.auto_pilot.sas_mode = v.auto_pilot.sas_mode.prograde
     v.auto_pilot.wait()
-    boostAPA(v, telem)  #fine tune APA
+    boostAPA(conn, launch_params)  #fine tune APA
 
     # Coast Phase
     sc.physics_warp_factor = MAX_PHYSICS_WARP
-    while still_in_atmosphere(v, telem):   
-        if apoapsis_little_low(v , ORBIT_ALT):
+    while still_in_atmosphere(conn):   
+        if apoapsis_little_low(v , launch_params.orbit_alt):
             sc.physics_warp_factor = 0
-            boostAPA(v, telem)
+            boostAPA(conn, launch_params)
             sc.physics_warp_factor = MAX_PHYSICS_WARP
-        telemetry(v, telem)  
+        telemetry(conn)  
         time.sleep(1.0 / REFRESH_FREQ)       
     
     # Circularization Burn
     sc.physics_warp_factor = 0
-    planCirc(v, sc.ut)
-    telemetry(v, telem)
+    planCirc(conn)
+    telemetry(conn)
     execute_next_node(conn)
 
     # Finish Up
-    if DEPLOY_SOLAR: v.control.solar_panels=True 
-    telemetry(v,telem)
+    if launch_params.deploy_solar: v.control.solar_panels=True 
+    telemetry(conn)
     v.auto_pilot.sas_mode= v.auto_pilot.sas_mode.prograde
  
 # ----------------------------------------------------------------------------
@@ -141,32 +164,40 @@ def autostage(vessel, MAX_AUTO_STAGE):
 # guidance routines
 # ----------------------------------------------------------------------------        
 
-def gravturn(vessel, flight):
+def gravturn(conn, launch_params):
     '''
     Execute quadratic gravity turn -  
     based on Robert Penner's easing equations (EaseOut)
     '''
-    progress=flight.mean_altitude/GRAV_TURN_FINISH
+    vessel = conn.space_center.active_vessel
+    flight = vessel.flight(vessel.orbit.body.non_rotating_reference_frame)
+    progress=flight.mean_altitude/launch_params.grav_turn_finish
     vessel.auto_pilot.target_pitch= 90-(-90 * progress*(progress-2))
      
-def boostAPA(vessel,flight):
+def boostAPA(conn, launch_params):
     '''
     function to increase Apoapsis using low thrust on a 
     tight loop with no delay for increased precision.
     '''
+    vessel = conn.space_center.active_vessel
+    flight = vessel.flight(vessel.orbit.body.non_rotating_reference_frame)
+
     vessel.control.throttle=.2
-    while apoapsis_little_low(vessel):
-        autostage(vessel)
-        telemetry(vessel, flight) 
+    while apoapsis_little_low(vessel, launch_params.orbit_alt):
+        autostage(vessel, launch_params.max_auto_stage)
+        telemetry(conn) 
     vessel.control.throttle=0
 
-def planCirc(vessel, ut):
+def planCirc(conn):
+
     '''
     Plan a Circularization at Apoapsis.  
     V1 is velocity at apoapsis.  
     V2 is the velocity at apoapsis of a circular orbit.   
     Burn time uses Tsiolkovsky rocket equation.
     '''
+    vessel = conn.space_center.active_vessel
+    ut = conn.space_center.ut
     grav_param = vessel.orbit.body.gravitational_parameter
     apo = vessel.orbit.apoapsis
     sma = vessel.orbit.semi_major_axis
@@ -178,6 +209,7 @@ def planCirc(vessel, ut):
 def inc_to_heading(inc):
     '''
     Converts desired inclination to a compass heading the autopilot can track
+    This only works for equatorial launches at the moment!   
     inc: inclination in degrees
     returns: heading in degrees
     '''
@@ -191,10 +223,12 @@ def inc_to_heading(inc):
         value += 360
     return value
 
-def limitq(vessel, flight, controller):
+def limitq(conn, controller):
     '''
     limits vessel's throttle to stay under MAX_Q using PID controller
     '''
+    vessel = conn.space_center.active_vessel
+    flight = vessel.flight(vessel.orbit.body.non_rotating_reference_frame)
     vessel.control.throttle= controller.update(flight.dynamic_pressure)
  
  
@@ -202,7 +236,7 @@ def limitq(vessel, flight, controller):
 # post telemetry
 # ----------------------------------------------------------------------------             
 
-def telemetry(vessel, flight):
+def telemetry(conn):
     '''
     Show telemetry data
     TODO: split between creating telemetry data (object? dict?)
@@ -210,6 +244,8 @@ def telemetry(vessel, flight):
     GUI later on. For this reason, no attempts to fit the lines has been
     made (yet)
     '''
+    vessel = conn.space_center.active_vessel
+    flight = vessel.flight(vessel.orbit.body.non_rotating_reference_frame)
     global next_telem_time
     
     if time.time() > next_telem_time:
@@ -246,7 +282,9 @@ def display_telemetry(t):
 # Helper functions
 # ----------------------------------------------------------------------------                
 
-def still_in_atmosphere(vessel, flight):
+def still_in_atmosphere(conn):
+    vessel = conn.space_center.active_vessel
+    flight = vessel.flight(vessel.orbit.body.non_rotating_reference_frame)
     return flight.mean_altitude<vessel.orbit.body.atmosphere_depth
 
 def apoapsis_way_low(vessel, ORBIT_ALT):

@@ -14,14 +14,12 @@
 ###  basic PID methods to control vessels with precision.
 ######################################################################
 
-
 import time
 import krpc
 import collections
 import math
 
 from pid import PID
-
 
 v3 = collections.namedtuple('v3', 'right forward up') 
 

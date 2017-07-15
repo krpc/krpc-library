@@ -14,9 +14,6 @@
 ###   variation of engine thrust.
 ##############################################################################
 
-
-
-
 import time
 import krpc
 

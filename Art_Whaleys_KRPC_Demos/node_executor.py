@@ -11,10 +11,6 @@
 ###  And you can see an example of doing so in the launch script.
 ######################################################################
 
-
-
-
-
 import krpc
 import math
 import time
