@@ -25,6 +25,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="docking_autopilot.py" />
+    <Compile Include="rendezvous.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="node_executor.py" />
     <Compile Include="pid.py" />
     <Compile Include="rover.py" />
