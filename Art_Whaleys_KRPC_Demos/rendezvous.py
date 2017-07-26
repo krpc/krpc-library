@@ -1,3 +1,18 @@
+######################################################################
+### Automated Rendezvous Library and Example
+######################################################################
+###   Like all of the scripts in my folder here, this file contains
+###   functions you might want to include into your own scripts for  
+###   actual use and a demo in the 'main' function that you can just 
+###   run to see how it works.
+###
+###  This file shows how to complete an orbital rendezvous with
+###  a target vessel.  
+###
+###  Important note - contains future functions of KRPC!   Won't work
+###  with release versions until 4.0 comes out!
+######################################################################
+
 import krpc
 import time
 import math
@@ -70,7 +85,7 @@ def hohmann(conn):
     phase_angle = get_phase_angle(v, t)
     transfer_time = time_transfer(v, t, time, phase_angle)
     node = hohmann_transfer(v, t, transfer_time)
-    print ("Executing dV1 Burn of {} m/s...".format(node.delta_v))
+    print ("Executing transfer injection burn {} m/s...".format(node.delta_v))
     execute_next_node(conn)
 
 def circularize_at_intercept(conn):
@@ -78,7 +93,8 @@ def circularize_at_intercept(conn):
     v = conn.space_center.active_vessel
     time = conn.space_center.ut
     node = circularize_at_apoapsis(v, time)
-    print("Executing dV2 Burn of {} m/s...".format(node.delta_v))
+    print("Executing circularization burn of {} m/s...".format(node.delta_v))
+    execute_next_node(conn)
 
 def get_closer(conn):
     sc = conn.space_center
