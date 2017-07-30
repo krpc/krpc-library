@@ -14,7 +14,6 @@
 ###   your last quick save.
 ######################################################################
 
-
 import krpc
 import time
 import math
@@ -77,6 +76,7 @@ def rover_go(conn, waypoint, speed = 10.0, savetime = 300 ):
     while not there_yet:
 
         autosave(conn, savetime, partslist)  ##call autosave to see if we should save yet
+        recharge(conn)
 
     ##  Steering control - handles selecting a bearing, comparing it to 
     ##  current heading and feeding that error in degrees to the PID to
@@ -138,6 +138,27 @@ def safetosave(conn, partslist):
         return False
     return True  # all good!
 
+##############################################################################
+##  Battery Charging Function - if the batteries are below 5% - stops rover
+##  and deploys solar panels until charge is above 85% then resumes travel.
+##############################################################################
+def recharge(conn):
+    vessel = conn.space_center.active_vessel
+    telem=vessel.flight(vessel.orbit.body.reference_frame)
+    Max_EC = vessel.resources.max('ElectricCharge')
+    EC = vessel.resources.amount('ElectricCharge')
+    if EC / Max_EC < .05:   #less than 5% charge - Stop the rover
+        vessel.control.wheel_throttle = 0
+        vessel.control.brakes = True
+        while telem.speed > 0.01:
+                pass
+        vessel.control.solar_panels = True
+        while EC / Max_EC < .85:   #less than 85% charge
+            Max_EC = vessel.resources.max('ElectricCharge')
+            EC = vessel.resources.amount('ElectricCharge')
+        vessel.control.solar_panels = False  ##pack up and get moving again
+        vessel.control.brakes = False
+        
 
 ##############################################################################
 ##  Navigation Math Functions
